@@ -1,0 +1,52 @@
+{
+  "name": "dicechess-bot-cloudflare-greedy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Dice Chess ladder anchor: the engine's unmodified greedy search on Cloudflare Workers.",
+  "author": {
+    "name": "Fortemate",
+    "url": "https://fortemate.com"
+  },
+  "contributors": [
+    {
+      "name": "Jegors Čemisovs",
+      "email": "jegors.cemisovs@gmail.com",
+      "url": "https://github.com/rabestro"
+    }
+  ],
+  "license": "AGPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fortemate/dicechess-bot-cloudflare-greedy.git"
+  },
+  "homepage": "https://fortemate.com",
+  "bugs": {
+    "url": "https://github.com/fortemate/dicechess-bot-cloudflare-greedy/issues"
+  },
+  "keywords": [
+    "chess",
+    "dicechess",
+    "bot",
+    "cloudflare-workers",
+    "webhook",
+    "scala-js"
+  ],
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "typecheck": "tsc --noEmit",
+    "test": "node --test src/webhook.test.ts src/strategy.test.ts"
+  },
+  "dependencies": {
+    "@fortemate/dicechess-engine": "^0.4.1"
+  },
+  "devDependencies": {
+    "@cloudflare/workers-types": "^5.20260822.1",
+    "typescript": "^7.0.2",
+    "wrangler": "^4.125.0"
+  }
+}

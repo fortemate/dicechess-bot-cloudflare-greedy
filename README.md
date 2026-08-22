@@ -1,0 +1,99 @@
+# Dice Chess Bot — Cloudflare Workers (Fixed Rating Anchor)
+
+[![CI](https://github.com/fortemate/dicechess-bot-cloudflare-greedy/actions/workflows/ci.yml/badge.svg)](https://github.com/fortemate/dicechess-bot-cloudflare-greedy/actions/workflows/ci.yml)
+[![Play Live](https://img.shields.io/badge/Play-Live-success)](https://fortemate.com/)
+[![Leaderboard](https://img.shields.io/badge/Ladder-Leaderboard-1E90FF)](https://fortemate.com/leaderboard)
+[![Engine](https://img.shields.io/badge/Engine-dicechess--engine-8A2BE2)](https://github.com/fortemate/dicechess-engine)
+[![License: AGPL v3](https://img.shields.io/badge/License-AGPL%20v3-lightgrey)](./LICENSE)
+
+The live [`cloudflare/greedy`](https://fortemate.com/leaderboard) ladder bot — a **fixed rating anchor**, not a showcase of strength.
+
+## Why this bot exists
+
+The ladder's Glicko rating is purely relative: retrain a model, retire an old one, add a new
+architecture, and the whole scale can drift without anyone noticing, because there is nothing
+fixed to measure it against. This bot is that fixed point — a lower bound the rest of the roster
+can be read relative to over months or years.
+
+It runs the engine's **unmodified built-in `greedy` search**: no opening book, no tuning, no
+config. That is deliberate, for reasons a trained model or a hand-tuned bot cannot offer:
+
+- **Deterministic, versioned engine code**, not a weights file that can be silently retrained,
+  overwritten, or lost in a private repository.
+- **No hosting-dependent behaviour.** It is a stateless Worker — no shared inference session, no
+  request queue, no clock pressure from concurrent games (the failure mode that cost other bots on
+  this ladder real rating points — see [`dicechess-house-bots`](https://github.com/fortemate/dicechess-house-bots)).
+- **Nothing to compete on.** `greedy` is the engine's simplest non-trivial search: it takes the
+  best-looking move by static material/position, with no lookahead. There is no version of this
+  bot that plays better without stopping being `greedy`.
+
+## The one rule
+
+**Do not improve this bot.** No opening book, no algorithm swap, no config knob. An anchor that
+gets tuned is not an anchor — it is just another entry in the roster, and the whole point of
+having a fixed point is gone. If you want a stronger Cloudflare showcase bot, build a new one (see
+[`dicechess-bot-cloudflare`](https://github.com/fortemate/dicechess-bot-cloudflare), which runs
+`aggressive` behind the opening book) — never repurpose this one.
+
+## Does the engine fit the free plan?
+
+Cloudflare's free plan allows **~10 ms CPU per request**. `greedy` has no lookahead — it is
+materially cheaper per call than the sibling `aggressive-book` bot, which itself measures ~0.4 ms
+p50. Comfortable with a wide margin at every roll.
+
+## Layout
+
+| Path | Role |
+| --- | --- |
+| `src/strategy.ts` | Calls the engine's built-in `greedy` algorithm. Nothing to configure — see "The one rule" above. |
+| `src/webhook.ts` | Pure delivery logic: WebCrypto HMAC verify (±5 min replay window), handshake echo. No engine — directly unit-tested. |
+| `src/index.ts` | The Workers `fetch` handler — reads the signing secret from the environment, relays to `handleDelivery`. |
+
+## Local development
+
+Requires Node 24+ (Node 26 recommended).
+
+```bash
+npm install
+npm test          # HMAC vector, handshake, 401/400 paths, and a real engine-legal move
+npm run typecheck
+npm run dev       # wrangler dev — runs the Worker locally in workerd
+```
+
+## Deploy to Cloudflare Workers
+
+```bash
+npm install
+npx wrangler login                  # one-time, opens the browser
+npm run deploy                      # publishes to https://dicechess-bot-cloudflare-greedy.<subdomain>.workers.dev
+```
+
+Then wire it to the platform (any HTTP client; `curl` shown):
+
+```bash
+BASE=https://api.fortemate.com
+URL=https://dicechess-bot-cloudflare-greedy.<subdomain>.workers.dev
+
+# 1. Claim a durable identity. Token shown ONCE.
+curl -X POST "$BASE/bot/register" -H "Content-Type: application/json" \
+  -d '{"team":"cloudflare","name":"greedy"}'
+
+# 2. Register the webhook (the deployed Worker must already answer — ownership handshake).
+#    The response carries the signing secret, shown ONCE.
+curl -X POST "$BASE/bot/webhook" -H "Authorization: Bearer <token>" \
+  -H "Content-Type: application/json" -d "{\"url\":\"$URL\"}"
+
+# 3. Give the Worker its secret (never commit it):
+npx wrangler secret put DICECHESS_WEBHOOK_SECRET   # paste the secret from step 2
+
+# 4. Join the rating ladder — passive from here; watch /bots/cloudflare/greedy converge.
+curl -X POST "$BASE/bot/ladder/join" -H "Authorization: Bearer <token>"
+```
+
+The `workers.dev` URL is HTTPS and public, which is all the webhook registration requires — no
+custom domain needed.
+
+## Licensing
+
+Distributed under the **GNU Affero General Public License v3.0** ([AGPL-3.0](./LICENSE)) due to linking with the
+AGPL-3.0 `@fortemate/dicechess-engine`.
